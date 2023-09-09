@@ -112,34 +112,38 @@ void runTests() {
         results.clear();
         testCase.function();
 
-        if (testCase.nameSpaces.size() == 0 || testCase.nameSpaces.size() < lastSize)
+        if (testCase.nameSpaces.size() == 0 || testCase.nameSpaces.size() < lastSize || lastNamespace != testCase.nameSpaces.back())
         {
             tab = "";
         }
 
         if (testCase.nameSpaces.size() > 0 && lastNamespace != testCase.nameSpaces.back())
         {
-            if (testCase.nameSpaces.size() < lastSize)
-                for (int i = 0; i < testCase.nameSpaces.size(); i++)
-                {
-                    tab += "    |   ";
-                }
-            else
+            int size = 0;
+            if (testCase.nameSpaces.size() > lastSize && lastNamespace == testCase.nameSpaces[lastSize])
+                size = lastSize;
+            for (; size < testCase.nameSpaces.size(); size++)
             {
-                int size = 0;
-                if (testCase.nameSpaces.size() > lastSize)
-                    size = lastSize;
-                for (; size < testCase.nameSpaces.size(); size++)
+                bool exit = false;
+                for (auto& _nameSpaces : nameSpaces)
                 {
-                    std::cout << tab << '[' << BLUE << testCase.nameSpaces[size] << DEFAULT <<']' << std::endl;
-                    tab += "    |   ";
+                    if (_nameSpaces == testCase.nameSpaces[size])
+                    {
+                        exit = true;
+                        break;
+                    }
                 }
+                if (!exit)
+                {
+                    nameSpaces.push_back(testCase.nameSpaces[size]);
+                    std::cout << tab << '[' << BLUE << testCase.nameSpaces[size] << DEFAULT << ']' << std::endl;
+                }
+                tab += "    |   ";
             }
-
             lastNamespace = testCase.nameSpaces.back();
             lastSize = testCase.nameSpaces.size();
         }
-        
+
         if (!asError) {
             std::cout << tab << "[" << GREEN << "PASS" << DEFAULT << "] " << testCase.name << "\n";
             passed++;
