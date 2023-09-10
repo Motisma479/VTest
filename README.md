@@ -1,4 +1,4 @@
-# VTest v1.0
+# VTest
 
 VTest is a header only library to make easy and simple Unit test.
 
