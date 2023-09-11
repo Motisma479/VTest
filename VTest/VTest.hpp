@@ -1,4 +1,4 @@
-﻿//—————————————————————————————————————————————————————————————————————————————————————\\
+//—————————————————————————————————————————————————————————————————————————————————————\\
 // ᴠᴛᴇsᴛ                                                                               \\
 // ‾‾‾‾‾                                                                               \\
 // Made by : Motisma479                                                                \\
@@ -32,6 +32,9 @@
 #include <vector>
 #include <functional>
 #include <string>
+
+#include <chrono>
+#include <thread>
 
 #define TEST(name) \
     void Test_##name(); \
@@ -165,19 +168,16 @@ void nameSpace::Draw(bool isLast, bool isFinal) const
 
     for (int i = 0; i < tabs - 1; i++)
     {
-        if (isFinal)
-            tab += "        ";
-        else
-            tab += "    \xe2\x94\x82   ";
+        tab += isFinal == true ? "        " : "    \xe2\x94\x82   "; // "    │   "
     }
     if (tabs != 0)
     {
         if (isLast && (tabs > 1 || isFinal))
         {
-            tab += "    \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80";
+            tab += "    \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    └───"
         }
         else
-            tab += "    \xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; //├
+            tab += "    \xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    ├───"
     }
 
     if (name != "__NO_NAMESPACE_FOUND")
@@ -185,10 +185,8 @@ void nameSpace::Draw(bool isLast, bool isFinal) const
         std::cout << tab << '[' << BLUE << name << DEFAULT << "]\n";
         if (isLast && tabs > 0)
         {
-            if (isFinal)
-                tab = "        ";
-            else
-                tab = "    \xe2\x94\x82   ";
+            tab = isFinal == true ? "        " : "    \xe2\x94\x82   "; // "    │   "
+            
             for (int i = 1; i < tabs; i++)
             {
                 tab += "        ";
@@ -203,12 +201,12 @@ void nameSpace::Draw(bool isLast, bool isFinal) const
                 {
                     tab += "        ";
                 }
-                tab += "    \xe2\x94\x82   ";
+                tab += "    \xe2\x94\x82   "; // "    │   "
             }
             else
                 for (int i = 0; i < tabs; i++)
                 {
-                    tab += "    \xe2\x94\x82   ";
+                    tab += "    \xe2\x94\x82   "; // "    │   "
                 }
         }
     }
@@ -217,9 +215,9 @@ void nameSpace::Draw(bool isLast, bool isFinal) const
         if (name != "__NO_NAMESPACE_FOUND")
         {
             if (testCase.id == testCases.back().id && (tabs > 0 || isLast))
-                caseTab = "    \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80";
+                caseTab = "    \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    └───"
             else if (name != "__NO_NAMESPACE_FOUND")
-                caseTab = "    \xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80";
+                caseTab = "    \xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    ├───"
         }
         if (testCase.id == preId + 1 || preId == 0)
         {
@@ -242,7 +240,7 @@ void nameSpace::Draw(bool isLast, bool isFinal) const
                     else if (isLast)
                         suptab = "        ";
                     else
-                        suptab = "    \xe2\x94\x82   ";
+                        suptab = "    \xe2\x94\x82   "; // "    │   "
 
 
                     std::cout << tab << suptab << color << result.expression << DEFAULT << "\n";
@@ -273,9 +271,9 @@ void nameSpace::Draw(bool isLast, bool isFinal) const
         for (const auto& testCase : testCases)
         {
             if (testCase.id == testCases.back().id && (tabs > 0 || isLast))
-                caseTab = "    \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80";
+                caseTab = "    \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    └───"
             else
-                caseTab = "    \xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80";
+                caseTab = "    \xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    ├───"
             if (testCase.id == preId + 1)
             {
                 asError = false;
@@ -323,7 +321,7 @@ void registerTestCase(std::vector<std::string> nameSpaces, const std::string& na
 
 void runTests() {
     std::system("chcp 65001");
-
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
     std::cout << "#############################################################################################\n";
     for (int i = 0; i < nameSpaceSorter.size(); i++)
     {
@@ -331,9 +329,7 @@ void runTests() {
             nameSpaceSorter[i].Draw(true);
         else
             nameSpaceSorter[i].Draw();
-
     }
     std::cout << "#############################################################################################\n";
     std::cout << "Tests run: " << passed + failed << ", Passed: " << passed << ", Failed: " << failed << std::endl;
-
 }
