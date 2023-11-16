@@ -2,7 +2,7 @@
 // ᴠᴛᴇsᴛ                                                                               \\
 // ‾‾‾‾‾                                                                               \\
 // Made by : Motisma479                                                                \\
-// Source code : https://github.com/Motisma479/Violet                                  \\
+// Source code : https://github.com/Motisma479/VTest                                   \\
 // License : MIT License                                                               \\
 // {                                                                                   \\
 //    Copyright (c) 2023 Mathieu Robion                                                \\
@@ -19,7 +19,7 @@
 //                                                                                     \\
 //    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR       \\
 //    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,         \\
-//    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE      \\
+//    FITNESS FOR A PARTICULAR PURPOSE AND NON INFRINGEMENT. IN NO EVENT SHALL THE      \\
 //    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER           \\
 //    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,    \\
 //    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE    \\
@@ -37,15 +37,24 @@
 #include <thread>
 
 #define TEST(name) \
+    []() {testName = #name;lastId++;}();\
+
+#define NAMESPACE(name) \
+    for (NameSpaceGuard nameSpaceGuard(#name); nameSpaceGuard.isActive(); nameSpaceGuard.setInactive()) \
+    
+#define VTEST(name) \
     void Test_##name(); \
     struct TestRegistrer_##name \
     { \
         TestRegistrer_##name() \
         { \
-            registerTestCase(nameSpaces, #name, Test_##name); \
+            RegisterVTest(#name, Test_##name); \
         } \
     } TestRegistrerInstance_##name; \
     void Test_##name()
+
+
+
 //-----------------------------------------------------------------------------
 #define REQUIRE(expression) do \
 { \
@@ -57,13 +66,12 @@
         } \
         else \
         { \
-            results.push_back({true, "\tTest passed: " #expression}); \
+            RegisterResult(testName,lastId, {true, "       Test passed: " #expression}); \
         } \
     } \
     catch (const std::exception& error) \
     { \
-        asError = true; \
-        results.push_back({false, std::string("\t") + error.what()}); \
+        RegisterResult(testName,lastId,{false, std::string("       ") + error.what()}); \
     } \
 } while (false)
 
@@ -77,258 +85,262 @@
         } \
         else \
         { \
-            results.push_back({true, "\tTest passed: " #result}); \
+            RegisterResult(testName, lastId,{true, "       Test passed: " #result}); \
         } \
     } \
     catch (const std::exception& error) \
     { \
-        asError = true; \
-        results.push_back({false, std::string("\t") + error.what()}); \
+        RegisterResult(testName,lastId,{false, std::string("       ") + error.what()}); \
     } \
 } while (false)
-//-----------------------------------------------------------------------------
-#define NAMESPACE(name) \
-    struct NameSpaceRegistrer_##name { \
-        NameSpaceRegistrer_##name() \
-        { \
-            nameSpaces.push_back(#name); \
-        } \
-    } NameSpaceRegistrerInstance_##name; \
 
-#define END_NAMESPACE(name) \
-    struct EndNameSpaceRegistrer_##name \
-    { \
-        EndNameSpaceRegistrer_##name() \
-        { \
-            nameSpaces.pop_back(); \
-        } \
-    } EndNameSpaceRegistrerInstance_##name;
 //-----------------------------------------------------------------------------
-struct testCase;
-struct testResult;
-struct nameSpace;
-
 constexpr const char* RED = "\033[38;2;242;96;103m";
 constexpr const char* GREEN = "\033[38;2;74;255;120m";
 constexpr const char* BLUE = "\033[38;2;44;158;243m";
+constexpr const char* PURPLE = "\033[38;2;170;142;214m";
 constexpr const char* DEFAULT = "\033[0m";
 
-std::vector<nameSpace> nameSpaceSorter;
-std::vector<testResult> results;
-std::vector<std::string> nameSpaces;
-int numberOfCase = 0;
-bool asError = false;
+struct Entry;
+struct VTest;
+Entry& GetEntryToPush(Entry& inEntry);
+
+std::vector<VTest> VTests = {};
+
+//-----------------------------------------------------------------------------
+// Used to correctly register the Entry
+//-----------------------------------------------------------------------------
+
+int lastId = 0;
+int lastNamespaceId = 0;
+std::string testName = "";
+
+//-----------------------------------------------------------------------------
+// Used to keep track of test results
+//-----------------------------------------------------------------------------
+
 int passed = 0;
 int failed = 0;
-//-----------------------------------------------------------------------------
-struct testCase
-{
-    std::string name;
-    std::function<void()> function;
-    int id;
 
-};
 //-----------------------------------------------------------------------------
+
 struct testResult
 {
     bool result;
     std::string expression;
 };
-//-----------------------------------------------------------------------------
-struct nameSpace
+enum EntryType
 {
-    std::string name;
-    int tabs;
-    std::vector<testCase> testCases;
-    std::vector<nameSpace> subNameSpace;
-    void AddCase(std::vector<std::string> nameSpaces, const std::string& name, const std::function<void()>& testFunction, int id);
-    void Draw(bool isLast = false, bool isFinal = false) const;
+    ERROR,
+    NAMESPACE,
+    TEST
+};
+struct Entry
+{
+    EntryType type = ERROR; // Use to identify the type of entry
+    std::string name = "";
+    int id = -1; // if -1 it's an error
+    std::vector<Entry> subEntry = {};
+
+    //related to TEST
+    std::vector<testResult> results = {};
+    bool asError = false;
+};
+struct VTest
+{
+    std::function<void()> function;
+    Entry entry;
+};
+class NameSpaceGuard
+{
+public:
+    NameSpaceGuard(const char* _name): active(true)
+    {
+        lastId++;
+        GetEntryToPush(VTests.back().entry).subEntry.push_back({NAMESPACE, _name, lastId, {}});
+        preId = lastNamespaceId;
+        lastNamespaceId = lastId;
+    }
+
+    ~NameSpaceGuard()
+    {
+        lastNamespaceId= preId;
+    }
+
+    bool isActive() const { return active; }
+	void setInactive() { active = false; }
+
+private:
+	bool active;
+    int preId = 0;
 };
 
-void nameSpace::AddCase(std::vector<std::string> nameSpaces, const std::string& name, const std::function<void()>& testFunction, int id)
+Entry errorEntry; // an error entry to be used in case of error
+Entry* lastTestEntry = &errorEntry; // Ref to the last test entry so it could be updated
+Entry& GetEntryToPush(Entry& inEntry)
 {
-    if (nameSpaces.size() > tabs + 1)
+    if(inEntry.id == lastNamespaceId)
+        return inEntry;
+    
+    for(auto& i : inEntry.subEntry)
     {
-        if (subNameSpace.size() != 0 && subNameSpace.back().name == nameSpaces[tabs + 1])
-        {
-            subNameSpace.back().AddCase(nameSpaces, name, testFunction, id);
-            return;
-        }
-        subNameSpace.push_back({ nameSpaces[tabs + 1], tabs + 1 });
-        subNameSpace.back().AddCase(nameSpaces, name, testFunction, id);
+        Entry& outEntry = GetEntryToPush(i);
+        if(outEntry.type != ERROR)
+            return outEntry;
+    }
+
+    return errorEntry;
+}
+
+//-------------------------------------------------------------
+// Working but not used. Could be useful if fully integrated
+//-------------------------------------------------------------
+// Entry& GetEntryById(Entry& inEntry, int id)
+// {
+//     if(inEntry.id == id)
+//         return inEntry;
+//
+//     for(auto& i : inEntry.subEntry)
+//     {
+//         Entry& outEntry = GetEntryById(i,id);
+//         if(outEntry.type != ERROR)
+//             return outEntry;
+//     }
+//
+//     return errorEntry;
+// }
+
+void RegisterResult(const std::string& _testName, const int& _id, testResult _results)
+{
+    if(_results.result)
+        passed++;
+    else
+        failed++;
+
+    if (lastTestEntry->id == _id)
+    {
+        lastTestEntry->results.push_back(_results);
+        if (!lastTestEntry->asError)
+            lastTestEntry->asError = !_results.result;
         return;
     }
-    testCases.push_back({ name, testFunction , id });
+     
+    std::vector<testResult> temp;
+    temp.push_back(_results);
+    Entry& newEntry = GetEntryToPush(VTests.back().entry);
+    newEntry.subEntry.push_back({ TEST, _testName, _id,{},temp,!_results.result});
+    lastTestEntry = &newEntry.subEntry.back();
 }
-void nameSpace::Draw(bool isLast, bool isFinal) const
+
+void RegisterVTest(const char* name ,const std::function<void()>& function)
 {
+    VTests.insert(VTests.begin(), {function, {NAMESPACE, name, lastId, {}}});
+}
+
+void Draw(Entry entry, std::vector<int> lastLineAt = {}, int recurrence = 0)
+{
+    if(recurrence == 0) // Draw the origin of execution
+    {
+        std::string hor, extraSpace;
+        if (entry.name.size() < 5)
+        {
+            for (int i = 0; i < 2; i++)
+                hor += "\xe2\x94\x81";
+            for (int i = entry.name.size(); i < 5; i++)
+                extraSpace += ' ';
+        }
+        else
+        {
+            for (int i = 0; i < entry.name.size()-3; i++)
+                hor += "\xe2\x94\x81";
+        }
+
+        std::cout << "\xe2\x94\x8f\xe2\x94\x81\xe2\x94\x81\xe2\x94\x81" << hor << "\xe2\x94\x93" << std::endl;
+        std::cout << "\xe2\x94\x83" << PURPLE << entry.name << DEFAULT << extraSpace << "\xe2\x94\x83" << std::endl;
+        std::cout << "\xe2\x94\x97\xe2\x94\x81\xe2\x94\x81\xe2\x94\xaf"<< hor <<"\xe2\x94\x9b\n";
+    }
+
     std::string tab = "";
-    std::string caseTab = "";
-    int preId = 0;
-
-    for (int i = 0; i < tabs - 1; i++)
+    for (int i = 0; i < recurrence; i++)
     {
-        tab += isFinal == true ? "        " : "    \xe2\x94\x82   "; // "    │   "
-    }
-    if (tabs != 0)
-    {
-        if (isLast && (tabs > 1 || isFinal))
-        {
-            tab += "    \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    └───"
-        }
+        auto checkIfBlank = [i,lastLineAt](){for(const auto& check : lastLineAt){ if(check == i){return true;}}return false;};
+        if(checkIfBlank())
+            tab += "       ";
         else
-            tab += "    \xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    ├───"
+            tab += "   \xe2\x94\x82   "; // "    │   "
     }
-
-    if (name != "__NO_NAMESPACE_FOUND")
+        
+    Entry lastEntry = entry.subEntry.back();
+    for (const auto& subEntry : entry.subEntry)
     {
-        std::cout << tab << '[' << BLUE << name << DEFAULT << "]\n";
-        if (isLast && tabs > 0)
+        const char* caseTab = "";
+        if (subEntry.id == lastEntry.id)
+            caseTab = "   \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    └───"
+        else
+            caseTab = "   \xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    ├───"
+
+        if (subEntry.type == NAMESPACE)
         {
-            tab = isFinal == true ? "        " : "    \xe2\x94\x82   "; // "    │   "
-            
-            for (int i = 1; i < tabs; i++)
-            {
-                tab += "        ";
-            }
+            std::cout << tab << caseTab << '[' << BLUE << subEntry.name << DEFAULT << "]\n";
+
+            if (subEntry.id == lastEntry.id)
+                lastLineAt.push_back(recurrence);
+                
+            Draw(subEntry, lastLineAt, recurrence + 1);
         }
         else
         {
-            tab = "";
-            if (isFinal)
+            if (subEntry.asError)
             {
-                for (int i = 0; i < tabs - 1; i++)
-                {
-                    tab += "        ";
-                }
-                tab += "    \xe2\x94\x82   "; // "    │   "
-            }
-            else
-                for (int i = 0; i < tabs; i++)
-                {
-                    tab += "    \xe2\x94\x82   "; // "    │   "
-                }
-        }
-    }
-    for (const auto& testCase : testCases)
-    {
-        if (name != "__NO_NAMESPACE_FOUND")
-        {
-            if (testCase.id == testCases.back().id && (tabs > 0 || isLast))
-                caseTab = "    \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    └───"
-            else if (name != "__NO_NAMESPACE_FOUND")
-                caseTab = "    \xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    ├───"
-        }
-        if (testCase.id == preId + 1 || preId == 0)
-        {
-            asError = false;
-            results.clear();
-            testCase.function();
+                std::cout << tab << caseTab << "[" << RED << "FAIL" << DEFAULT << "] " << subEntry.name << "\n";
 
-            if (!asError) {
-                std::cout << tab << caseTab << "[" << GREEN << "PASS" << DEFAULT << "] " << testCase.name << "\n";
-                passed++;
+                caseTab = subEntry.id == lastEntry.id ? "       " : "   \xe2\x94\x82   "; // "    │   "
+                for (const auto& r : subEntry.results)
+                {
+                    auto color = r.result == true ? GREEN : RED;
+                    std::cout << tab << caseTab << color << r.expression << DEFAULT << "\n";
+                }
             }
             else
             {
-                std::cout << tab << caseTab << "[" << RED << "FAIL" << DEFAULT << "] " << testCase.name << "\n";
-                for (const auto& result : results) {
-                    auto color = result.result == true ? GREEN : RED;
-                    std::string suptab;
-                    if (tab == "")
-                        suptab = "";
-                    else if (isLast)
-                        suptab = "        ";
-                    else
-                        suptab = "    \xe2\x94\x82   "; // "    │   "
-
-
-                    std::cout << tab << suptab << color << result.expression << DEFAULT << "\n";
-                }
-                failed++;
-            }
-
-            preId = testCase.id;
-        }
-        else break;
-    }
-    for (int i = 0; i < subNameSpace.size(); i++)
-    {
-        bool checkFinal = false;
-
-        if (i == subNameSpace.size() - 1 && tabs >= 0 && isLast)
-            checkFinal = true;
-        if (subNameSpace[i].testCases.size() > 0 && testCases.size() > 0 && subNameSpace[i].testCases.back().id != testCases.back().id)
-            checkFinal = false;
-
-        if (i == subNameSpace.size() - 1 && (tabs > 0 || isLast))
-            subNameSpace[i].Draw(true, checkFinal);
-        else
-            subNameSpace[i].Draw(false, isFinal);
-
-        if (subNameSpace[i].testCases.size() > 0)
-            preId = subNameSpace[i].testCases.back().id;
-        for (const auto& testCase : testCases)
-        {
-            if (testCase.id == testCases.back().id && (tabs > 0 || isLast))
-                caseTab = "    \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    └───"
-            else
-                caseTab = "    \xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"; // "    ├───"
-            if (testCase.id == preId + 1)
-            {
-                asError = false;
-                results.clear();
-                testCase.function();
-
-                if (!asError) {
-                    std::cout << tab << caseTab << "[" << GREEN << "PASS" << DEFAULT << "] " << testCase.name << "\n";
-                    passed++;
-                }
-                else
-                {
-                    std::cout << tab << caseTab << "[" << RED << "FAIL" << DEFAULT << "] " << testCase.name << "\n";
-                    for (const auto& result : results) {
-                        auto color = result.result == true ? GREEN : RED;
-                        std::cout << tab << color << result.expression << DEFAULT << "\n";
-                    }
-                    failed++;
-                }
-
-                preId = testCase.id;
+                std::cout << tab << caseTab << "[" << GREEN << "PASS" << DEFAULT << "] " << subEntry.name << "\n";
             }
         }
     }
 }
-//-----------------------------------------------------------------------------
 
-void registerTestCase(std::vector<std::string> nameSpaces, const std::string& name, const std::function<void()>& testFunction)
-{
-    if (nameSpaces.size() == 0)
-    {
-        nameSpaceSorter.push_back({ "__NO_NAMESPACE_FOUND", 0 });
-        nameSpaceSorter.back().AddCase(nameSpaces, name, testFunction, numberOfCase);
-    }
-    else if (nameSpaceSorter.size() == 0 || nameSpaces[0] != nameSpaceSorter.back().name)
-    {
-        nameSpaceSorter.push_back({ nameSpaces[0], 0 });
-        nameSpaceSorter.back().AddCase(nameSpaces, name, testFunction, numberOfCase);
-    }
-    else
-        nameSpaceSorter.back().AddCase(nameSpaces, name, testFunction, numberOfCase);
-
-    numberOfCase++;
-}
-
-void runTests() {
+template<typename... Args>
+void runTests(Args... names) {
     std::system("chcp 65001");
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     std::cout << "#############################################################################################\n";
-    for (int i = 0; i < nameSpaceSorter.size(); i++)
+    for (int v = VTests.size()-1; v > -1; v--)
     {
-        if (i == nameSpaceSorter.size() - 1)
-            nameSpaceSorter[i].Draw(true);
-        else
-            nameSpaceSorter[i].Draw();
+        bool shouldContinue = true;
+        if(sizeof...(names) > 0)
+        {
+            for (const auto& name : std::initializer_list<std::string>{names...})
+            {
+                shouldContinue = false;
+                if(VTests[v].entry.name == name)
+                {
+                    shouldContinue = true;
+                    break;
+                }
+            }
+        }
+        if(shouldContinue)
+        {
+            VTests[v].function();
+            Draw(VTests[v].entry);
+            
+
+            lastId = 0;
+            lastNamespaceId = 0;
+            testName = "";
+            lastTestEntry = &errorEntry;
+        }
+        VTests.pop_back();
     }
     std::cout << "#############################################################################################\n";
     std::cout << "Tests run: " << passed + failed << ", Passed: " << passed << ", Failed: " << failed << std::endl;
