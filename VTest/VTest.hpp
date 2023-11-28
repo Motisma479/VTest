@@ -255,21 +255,31 @@ void RegisterVTest(const char* name ,const std::function<void()>& function)
     VTests.insert(VTests.begin(), {function, {NAMESPACE, name, lastId, {}}});
 }
 
+int CountCharsWithUtf8Support(const std::string& str)
+{
+    int count = 0;
+    for (size_t i = 0; i < str.size(); ++i)
+        if ((str[i] & 0xC0) != 0x80)
+            ++count;
+    return count;
+}
+
 void Draw(Entry entry, std::vector<int> lastLineAt = {}, int recurrence = 0)
 {
     if(recurrence == 0) // Draw the origin of execution
     {
         std::string hor, extraSpace;
-        if (entry.name.size() < 5)
+        int charNumber = CountCharsWithUtf8Support(entry.name);
+        if (charNumber < 5)
         {
             for (int i = 0; i < 2; i++)
                 hor += "\xe2\x94\x81";
-            for (int i = entry.name.size(); i < 5; i++)
+            for (int i =  charNumber; i < 5; i++)
                 extraSpace += ' ';
         }
         else
         {
-            for (int i = 0; i < entry.name.size()-3; i++)
+            for (int i = 0; i < charNumber-3; i++)
                 hor += "\xe2\x94\x81";
         }
 
