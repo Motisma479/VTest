@@ -33,7 +33,7 @@
 #include <functional>
 #include <string>
 
-#include <chrono>
+//may need to be removed after testing
 #include <thread>
 
 #define TEST(name) \
@@ -94,6 +94,24 @@
     } \
 } while (false)
 
+#define COMPARE_WITH_PRECISION(result, expectation, precision) do \
+{ \
+    try \
+    { \
+        if ([&](){auto r = result - expectation; if(r<0) r = -r; return r > precision;}()) \
+        { \
+            throw std::runtime_error(std::string("Test failed: ") + #result + std::string(" expected ") + std::to_string(expectation) + std::string(", but got ") + std::to_string(result)); \
+        } \
+        else \
+        { \
+            RegisterResult(testName, lastId,{true, "       Test passed: " #result}); \
+        } \
+    } \
+    catch (const std::exception& error) \
+    { \
+        RegisterResult(testName,lastId,{false, std::string("       ") + error.what()}); \
+    } \
+} while (false)
 //-----------------------------------------------------------------------------
 constexpr const char* RED = "\033[38;2;242;96;103m";
 constexpr const char* GREEN = "\033[38;2;74;255;120m";
