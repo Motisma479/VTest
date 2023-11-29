@@ -31,16 +31,28 @@
 #include <iostream>
 #include <vector>
 #include <functional>
+
 #include <string>
+#include <cstring>
+
+#include <cstdarg>
 
 //may need to be removed after testing
 #include <thread>
 
-#define TEST(name) \
-    []() {testName = #name;lastId++;}();\
+//weird msvc behavior exception
+#ifdef _MSC_VER
+#define VA_ARGS(...) , __VA_ARGS__
+#else
+#define VA_ARGS(...) __VA_OPT__(,) __VA_ARGS__ 
+#endif
 
-#define NAMESPACE(name) \
-    for (NameSpaceGuard nameSpaceGuard(#name); nameSpaceGuard.isActive(); nameSpaceGuard.setInactive()) \
+
+#define TEST(name, ...) \
+    []() {testName = #name; lastId++; SaveTagList(lastId,GetTagList(GetArgAtIndex<const char*>(1, "" VA_ARGS(__VA_ARGS__))));}();\
+
+#define NAMESPACE(name, ...) \
+    for (NameSpaceGuard nameSpaceGuard(#name VA_ARGS(__VA_ARGS__)); nameSpaceGuard.isActive(); nameSpaceGuard.setInactive()) \
     
 #define VTEST(name) \
     void Test_##name(); \
@@ -52,8 +64,6 @@
         } \
     } TestRegistrerInstance_##name; \
     void Test_##name()
-
-
 
 //-----------------------------------------------------------------------------
 #define REQUIRE(expression) do \
@@ -75,6 +85,7 @@
     } \
 } while (false)
 
+
 #define COMPARE(result, expectation) do \
 { \
     try \
@@ -94,6 +105,7 @@
     } \
 } while (false)
 
+
 #define COMPARE_WITH_PRECISION(result, expectation, precision) do \
 { \
     try \
@@ -112,7 +124,32 @@
         RegisterResult(testName,lastId,{false, std::string("       ") + error.what()}); \
     } \
 } while (false)
+
 //-----------------------------------------------------------------------------
+// ArgsGestureFunction
+//-----------------------------------------------------------------------------
+
+template<typename T, typename... Args>
+T GetArgAtIndex(int index, T defaultSolution, Args... args)
+{
+    T result = defaultSolution;
+    
+    if(index <= sizeof...(args)+1)
+    {
+        int i = 0;
+        for (const auto& arg : std::initializer_list<T>{args...})
+        {
+            i++;
+            result = arg;
+            if (i == index)
+                break;
+        }
+    }
+    return result;
+}
+
+//-----------------------------------------------------------------------------
+
 constexpr const char* RED = "\033[38;2;242;96;103m";
 constexpr const char* GREEN = "\033[38;2;74;255;120m";
 constexpr const char* BLUE = "\033[38;2;44;158;243m";
@@ -122,6 +159,8 @@ constexpr const char* DEFAULT = "\033[0m";
 struct Entry;
 struct VTest;
 Entry& GetEntryToPush(Entry& inEntry);
+std::vector<std::string> GetTagList(const char* tagListBrut);
+void SaveTagList(int id, const std::vector<std::string>& tagList);
 
 std::vector<VTest> VTests = {};
 
@@ -132,6 +171,7 @@ std::vector<VTest> VTests = {};
 int lastId = 0;
 int lastNamespaceId = 0;
 std::string testName = "";
+std::vector<std::pair<int, std::vector<std::string>>> TagsList;
 
 //-----------------------------------------------------------------------------
 // Used to keep track of test results
@@ -139,6 +179,11 @@ std::string testName = "";
 
 int passed = 0;
 int failed = 0;
+
+//-----------------------------------------------------------------------------
+
+bool shouldCheckTagList = false;
+std::vector<std::string> tagListToCheck;
 
 //-----------------------------------------------------------------------------
 
@@ -172,10 +217,14 @@ struct VTest
 class NameSpaceGuard
 {
 public:
-    NameSpaceGuard(const char* _name): active(true)
+    template<typename... Args>
+    NameSpaceGuard(const char* _name, Args... args): active(true)
     {
         lastId++;
         GetEntryToPush(VTests.back().entry).subEntry.push_back({NAMESPACE, _name, lastId, {}});
+        SaveTagList(lastId, GetTagList(GetArgAtIndex(1, "", args...)));
+        SaveTagList(lastId, GetTagList(GetArgAtIndex<const char*>(1, "" , args...)));
+        
         preId = lastNamespaceId;
         lastNamespaceId = lastId;
     }
@@ -264,6 +313,35 @@ int CountCharsWithUtf8Support(const std::string& str)
     return count;
 }
 
+std::vector<std::string> GetTagList(const char* tagListBrut)
+{
+    std::vector<std::string> tagList;
+    std::string tag;
+    for(int i = 0; i < std::strlen(tagListBrut); i++)
+    {
+        if(tagListBrut[i] == ' ') //ignore spaces
+            continue;
+        if(tagListBrut[i] == ',' || tagListBrut[i] == '|') // used to separate tags
+        {
+            tagList.push_back(tag);
+            tag = "";
+        }
+        else
+
+        tag += tagListBrut[i];
+    }
+    if(!tag.empty()) // used to put the last tag
+        tagList.push_back(tag);
+
+    return tagList;
+}
+
+void SaveTagList(int id, const std::vector<std::string>& tagList)
+{
+    if(tagList.size() > 0)
+        TagsList.push_back({id, tagList});
+}
+
 void Draw(Entry entry, std::vector<int> lastLineAt = {}, int recurrence = 0)
 {
     if(recurrence == 0) // Draw the origin of execution
@@ -337,6 +415,51 @@ void Draw(Entry entry, std::vector<int> lastLineAt = {}, int recurrence = 0)
     }
 }
 
+bool RemoveNoTaggedEntries(Entry& entry)
+{
+    for (const auto& tagList : TagsList) // search if entry as tag
+    {
+        if(tagList.first == entry.id) 
+        {
+            bool asCommonTag = false;
+            for(const auto& tag : tagListToCheck) // search if entry has tag in common
+            {
+                for (const auto& ownTag : tagList.second)
+                    if (tag == ownTag) 
+                    {
+                        return true;
+                    }
+            }
+            break; 
+        }
+    }
+
+        
+    bool asSubEntryTagged = false;
+    for(int i = 0; i < entry.subEntry.size(); i++)
+    {
+        if(!RemoveNoTaggedEntries(entry.subEntry[i]))
+        {
+            entry.subEntry.erase(entry.subEntry.begin() + i);
+            i--;
+            continue;
+        }
+        asSubEntryTagged = true;
+    }
+    return asSubEntryTagged;        
+}
+
+void TagsToDraw(const char* tagList = "")
+{
+    if(std::strlen(tagList) == 0)
+    {
+        tagListToCheck.clear();
+        shouldCheckTagList = false;
+        return;
+    }
+    tagListToCheck = GetTagList(tagList);
+    shouldCheckTagList = true;
+}
 template<typename... Args>
 void runTests(Args... names) {
     std::system("chcp 65001");
@@ -360,6 +483,18 @@ void runTests(Args... names) {
         if(shouldContinue)
         {
             VTests[v].function();
+
+            if(shouldCheckTagList)
+                if (!RemoveNoTaggedEntries(VTests[v].entry))
+                {
+                    lastId = 0;
+                    lastNamespaceId = 0;
+                    testName = "";
+                    lastTestEntry = &errorEntry;
+                    VTests.pop_back();
+                    continue;
+                }
+
             Draw(VTests[v].entry);
             
 
