@@ -375,7 +375,9 @@ void Draw(Entry entry, std::vector<int> lastLineAt = {}, int recurrence = 0)
         else
             tab += "   \xe2\x94\x82   "; // "    │   "
     }
-        
+
+    if (entry.subEntry.size() == 0)
+        return;
     Entry lastEntry = entry.subEntry.back();
     for (const auto& subEntry : entry.subEntry)
     {
