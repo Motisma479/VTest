@@ -2,7 +2,7 @@
 
 VTest is a header only library to make easy and simple Unit test.
 
-For now the library works with five macro an one function :
+For now the library works with five macro and three functions :
 ```c++
 VTEST(name)
 {
@@ -15,7 +15,8 @@ VTEST(name)
         }
     }
 }
-TagsToDraw();
+IterationValue(numberToIterate);
+TagsToTarget();
 RunTest();
 
 ```
@@ -24,7 +25,7 @@ The ```VTEST(name){ } ``` macro is used to declare a unit test. The name taken b
 
 The macro ``` NAMESPACE(name){ } ``` taking a name as a parameter the utility of this macro is very limited, it doesn't make an actual test but rather it helps to make clear section when the test is running.
 
-The macro ```TEST(name){ }```it take a name has a parameter and is what make a test, it has to contain ```REQUIRE(expression);``` or ```COMPARE(result, expectation);``` it can be alone or inside a namespace macro.
+The macro ```TEST(name){ }```it take a name has a parameter and is what make a test, it has to contain ```REQUIRE(expression);```, ```COMPARE(result, expectation);``` or ```COMPARE_WITH_PRECISION(result, expectation, precision);``` it can be alone or inside a namespace macro.
 
 The macro ```REQUIRE(expression);``` takes an expression as a parameter and will simply check if true.
 
@@ -32,7 +33,11 @@ The macro ```COMPARE(result, expectation);``` is similar to the previous one but
 
 The macro ```COMPARE_WITH_PRECISION(result, expectation, precision);``` is similar to the previous one but need a precision. It will test and compare with a precision so it is useful for floating numbers like ```double``` or ```float```.
 
-If you want to use Tags you can set a list of tags in a test or in a namespace like : ```NAMESPACE(name,"Tag, Tag2"){ }``` or ```TEST(name,"Tag, Tag2"){ }``` and then you can draw specific tags with : ```TagsToDraw("Tag, Tag2");```
+If you want to use Tags you can set a list of tags in a test or in a namespace like : ```NAMESPACE(name,"Tag, Tag2"){ }``` or ```TEST(name,"Tag, Tag2"){ }``` and then you can draw specific tags with : ```TagsToTarget("Tag, Tag2");```
+
+The duration of a ```TEST``` will be measured and print in millisecond. for an accurate measure you can use the function: ```IterationValue(numberToIterate);```.
+
+It is now possible to cout text in a test. You only have to use ```std::cout```. note: it is not recommended to use this option for measurement since it is heavy to cout.
 
 ### Example
 ```c++
@@ -69,6 +74,9 @@ VTEST(Test)
         {
             REQUIRE(factorial(1) == 1);
             REQUIRE(factorial(3) == 6);
+
+            std::cout << "This Text is here with a std::cout" << std::endl;
+            std::cout << "the functionality support multiple lines like this\none\ntwo\nthree" << std::endl;
         }
 
     }
@@ -87,7 +95,8 @@ VTEST(Test)
 
 int main() {
     system("cls");   // used to clear and enable color on Windows
-    TagsToDraw("Tag2");
+    IterationValue(3);
+    TagsToTarget("Tag2");
     runTests();
     system("pause"); // used to pause at the end on Windows;
     return 0;
