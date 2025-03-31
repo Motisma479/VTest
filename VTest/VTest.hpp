@@ -255,6 +255,7 @@ struct Entry
     bool asError = false;
 
     uint64_t duration = 0; // in nanosecond
+    uint8_t longestNameLength = 0;
 
     //-related to Stream---------------
     std::string capturedOutput = "";
@@ -390,6 +391,7 @@ public:
     TestGuard(const char* _name, Args... args)
     {
         testName = _name;
+        uint64_t testNameLength = testName.length();
         lastId++;
 
         std::vector<std::string> tagList = GetTagList(GetArgAtIndex<const char*>(1, "", args...));
@@ -407,6 +409,9 @@ public:
         //create a new entry     
         Entry& newEntry = GetEntryToPush(VTests.back().entry);
         newEntry.subEntry.push_back({ TEST, testName, lastId,{},{},false});
+        
+        if (newEntry.longestNameLength < testNameLength) newEntry.longestNameLength = testNameLength;
+
         lastTestEntry = &newEntry.subEntry.back();
 
         if(!IsTagged(*lastTestEntry))
@@ -582,13 +587,19 @@ void DrawHead(std::string name)
     std::cout << "\xe2\x94\x97\xe2\x94\x81\xe2\x94\x81\xe2\x94\xaf"<< hor <<"\xe2\x94\x9b\n";
 }
 
-void DrawTest(const Entry& subEntry, const Entry& lastEntry, std::string tab, std::string caseTab, int iterationValue)
+void DrawTest(const Entry& subEntry, const Entry& lastEntry, std::string tab, std::string caseTab, int iterationValue, uint64_t durationPadding)
 {
     std::cout << std::fixed << std::setprecision(6); //use 6 digits after the decimal point
 
+    std::string durationPaddingText = "";
+    for (int i = 0; i < durationPadding; i++)
+    {
+        durationPaddingText += ' ';
+    }
+
     if (subEntry.asError)
     {
-        std::cout << tab << caseTab << "[" << RED << "FAIL" << DEFAULT << "] " << subEntry.name << " \xe2\x94\x82 " << YELLOW << (subEntry.duration / iterationValue) * 1e-6 << " ms" << DEFAULT << "\n";
+        std::cout << tab << caseTab << "[" << RED << "FAIL" << DEFAULT << "] " << subEntry.name << durationPaddingText << " \xe2\x94\x82 " << YELLOW << (subEntry.duration / iterationValue) * 1e-6 << " ms" << DEFAULT << "\n";
 
         caseTab = subEntry.id == lastEntry.id ? "       " : "   \xe2\x94\x82   "; // "    │   "
         for (const auto& r : subEntry.results)
@@ -599,7 +610,7 @@ void DrawTest(const Entry& subEntry, const Entry& lastEntry, std::string tab, st
     }
     else
     {
-        std::cout << tab << caseTab << "[" << GREEN << "PASS" << DEFAULT << "] " << subEntry.name << " \xe2\x94\x82 " << YELLOW << (subEntry.duration / iterationValue) * 1e-6 << " ms" << DEFAULT << "\n";
+        std::cout << tab << caseTab << "[" << GREEN << "PASS" << DEFAULT << "] " << subEntry.name << durationPaddingText << " \xe2\x94\x82 " << YELLOW << (subEntry.duration / iterationValue) * 1e-6 << " ms" << DEFAULT << "\n";
     }
 
     if (subEntry.asCapturedOutput)
@@ -656,7 +667,7 @@ void Draw(Entry entry, std::vector<int> lastLineAt = {}, int recurrence = 0)
         }
         else
         {
-            DrawTest(subEntry, lastEntry, tab, caseTab, iterationValue);
+            DrawTest(subEntry, lastEntry, tab, caseTab, iterationValue, entry.longestNameLength - subEntry.name.length());
         }
     }
 }
