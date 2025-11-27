@@ -191,7 +191,6 @@ void SaveTagList(const std::vector<std::string>& tagList);
 void PopTagList();
 bool IsTagged(Entry& entry);
 
-std::vector<VTest> VTests = {}; //List of all tests
 
 //-----------------------------------------------------------------------------
 
@@ -339,6 +338,7 @@ struct VTest
     std::function<void()> function;
     Entry entry;
 };
+std::vector<VTest> VTests = {}; //List of all tests
 
 void RegisterVTest(const char* name ,const std::function<void()>& function)
 {
